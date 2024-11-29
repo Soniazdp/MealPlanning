@@ -36,7 +36,9 @@ print(result_json)
 
 extracted_recipe = {}
 
-for recipe in utils.query_res:
+query_res = utils.get_query_res()
+
+for recipe in query_res:
     recipe_name = recipe['Name']
     recipe_instructions = recipe["RecipeInstructions"]
     matches = re.findall(r'"(.*?)"', recipe_instructions)
@@ -55,9 +57,13 @@ print(cook_steps)
 
 concat_steps = utils.steps_to_str(cook_steps)
 
+ask_ingreds_g_prompt = utils.ask_ingreds_g_template.format(user_location=user_location, user_query=user_query, extra_input=extra_input, generated_recipes=concat_steps)
+
 ask_ingreds_prompt = utils.ask_ingreds_template.format(user_location=user_location, user_query=user_query, extra_input=extra_input, generated_recipes=concat_steps)
 
-ingreds = utils.generate(llm, ask_ingreds_prompt, utils.schema_ingreds, temperature)
+ingreds = utils.generate(llm, ask_ingreds_g_prompt, utils.schema_ingreds_g, temperature)
+
+res_ingreds = utils.generate(llm, ask_ingreds_prompt, utils.schema_ingreds, temperature)
 
 print("Ingredients: ")
 print(ingreds)
@@ -89,16 +95,20 @@ while compliance_res['Compliance'] == False and count < 10:
 
     fix_recipe_prompt = utils.fix_recipe_template.format(user_location=user_location, user_query=user_query, extra_input=extra_input, generated_recipes=concat_steps, nutrients_str=nutrients_str, comply_reason=compliance_res['Reason'])
 
-    new_recipe_res = utils.generate_recipe(llm, fix_recipe_prompt, utils.schema_recipe, temperature)
+    cook_steps = utils.generate_recipe(llm, fix_recipe_prompt, utils.schema_recipe, temperature)
 
     print("Recipe steps: ")
-    print(new_recipe_res)
+    print(cook_steps)
 
-    concat_steps = utils.steps_to_str(new_recipe_res)
+    concat_steps = utils.steps_to_str(cook_steps)
+
+    ask_ingreds_g_prompt = utils.ask_ingreds_g_template.format(user_location=user_location, user_query=user_query, extra_input=extra_input, generated_recipes=concat_steps)
 
     ask_ingreds_prompt = utils.ask_ingreds_template.format(user_location=user_location, user_query=user_query, extra_input=extra_input, generated_recipes=concat_steps)
 
-    ingreds = utils.generate(llm, ask_ingreds_prompt, utils.schema_ingreds, temperature)
+    ingreds = utils.generate(llm, ask_ingreds_g_prompt, utils.schema_ingreds_g, temperature)
+
+    res_ingreds = utils.generate(llm, ask_ingreds_prompt, utils.schema_ingreds, temperature)
 
     print("Ingredients: ")
     print(ingreds)
@@ -117,3 +127,10 @@ while compliance_res['Compliance'] == False and count < 10:
     print(compliance_res)
 
     count += 1
+
+cook_steps['Nutrition info'] = recipe_with_nutrients
+ingreds_df = pd.DataFrame(res_ingreds['Ingredients'])
+ingreds_df.to_csv("ingredients_result.csv", index=False)
+json_object = json.dumps(cook_steps, indent=4)
+with open("cook_steps.json", "w") as outfile:
+    outfile.write(json_object)
