@@ -2,6 +2,7 @@ import os
 os.environ['HF_HOME'] = "/scratch/ssd004/scratch/lfy"
 
 from llama_cpp import LlamaGrammar
+import pyterrier as pt
 import random, os
 import numpy as np
 import pandas as pd
@@ -9,6 +10,13 @@ import torch
 import json
 import re
 from rapidfuzz import process
+import tempfile
+from tqdm import tqdm
+
+from whoosh import index, writing
+from whoosh.fields import Schema, TEXT, KEYWORD, ID, STORED
+from whoosh.analysis import *
+from whoosh.qparser import QueryParser
 
 def seed_everything(seed: int):
     random.seed(seed)
@@ -135,8 +143,51 @@ def nutrients_to_str(recipe_with_nutrients, nutrients_dict):
         nutrients_str += ", "
     return nutrients_str
     
-def get_query_res():
-    return temp_query_res
+def get_query_res(result_json):
+
+    recipes_full = pd.read_csv('data/recipes.csv', encoding='utf-8', on_bad_lines='skip')
+    recipes_full = recipes_full.fillna(value={'RecipeServings': 1.0})
+
+    recipe_cols = ["Name", "Description", "RecipeIngredientQuantities", "RecipeIngredientParts", "RecipeInstructions"]
+    recipes_full["full_document"] = recipes_full[recipe_cols].apply(lambda row: ' '.join(row.values.astype(str)), axis=1)
+    recipes_full = recipes_full.astype({'RecipeId': 'string'})
+
+    docs_df = recipes_full[['RecipeId', 'full_document']].copy()
+    docs_df = docs_df.rename(columns={"RecipeId": "docno", "full_document": "text"})
+
+
+    mySchema = Schema(index = ID(stored=True),
+                    content = TEXT(stored=True))
+    
+    indexDir = tempfile.mkdtemp()
+
+    ix = index.create_in(indexDir, mySchema)
+
+    writer = ix.writer()
+
+    for i in tqdm(range(len(docs_df))):
+        writer.add_document(index=str(docs_df.docno.iloc[i]), content=str(docs_df.text.iloc[i]))
+    writer.commit()
+
+    query_results = []
+
+    for food in tqdm(result_json['food_names']):
+        parser = QueryParser("content", schema=ix.schema)
+        searcher = ix.searcher()
+        query = parser.parse(food)
+        results = searcher.search(query, limit=1)
+
+        for res in results:
+            res_dict = {}
+            res_dict['index'] = res['index']
+            res_dict['query'] = food
+            res_dict['Name'] = recipes_full[recipes_full['RecipeId'] == res['index']]['Name'].to_string(index=False)
+
+            res_dict['RecipeInstructions'] = res['content']
+
+            query_results.append(res_dict)
+
+    return query_results
 
 ask_food_prompt_template = "The user is living in {user_location}. The user is looking for a {user_query}. {extra_input} Suggest 5 {user_query} which can be cooked by the user, without actual recipe."
 
@@ -305,63 +356,3 @@ nutrients_unit = {'calories': '',
                   'zinc': 'mg',
                   'water': 'g'}
 
-
-'''
-recipes_full = pd.read_csv('data/recipes.csv', encoding='utf-8', on_bad_lines='skip')
-recipes_full = recipes_full.fillna(value={'RecipeServings': 1.0})
-
-recipes_full.head()
-
-recipe_cols = ["Name", "Description", "RecipeIngredientQuantities", "RecipeIngredientParts", "RecipeInstructions"]
-recipes_full["full_document"] = recipes_full[recipe_cols].apply(lambda row: ' '.join(row.values.astype(str)), axis=1)
-recipes_full = recipes_full.astype({'RecipeId': 'string'})
-
-docno = len(recipes_full)
-
-docs_df = recipes_full[['RecipeId', 'full_document']].copy()
-docs_df = docs_df.rename(columns={"RecipeId": "docno", "full_document": "text"})
-docs_df.head()
-
-index_dir = './recipes_index'
-indexer = pt.DFIndexer(index_dir, overwrite=True, )
-index_ref = indexer.index(docs_df["text"], docs_df["docno"])
-index_ref.toString()
-index = pt.IndexFactory.of(index_ref)
-br = pt.BatchRetrieve(index, wmodel="Tf")
-
-
-query_set = result_json['food_names']
-
-desc = ['vegan', 'Vegan', 'Vegetarian', 'vegetarian']
-
-for d in desc:
-  query_set = [s.strip(d) for s in query_set]
-
-breakpoint()
-
-query_results = br.transform(query_set)
-
-query_results.head()
-
-result_cols = ["RecipeId", "Name", "Description", "RecipeIngredientQuantities", "RecipeIngredientParts",
-               "RecipeInstructions", "Calories", "FatContent", "SaturatedFatContent", "CholesterolContent",
-               "SodiumContent", "CarbohydrateContent", "FiberContent", "SugarContent", "ProteinContent", "RecipeServings"]
-
-breakpoint()
-
-results = pd.merge(query_results[["docno", "rank", "query"]],
-                         recipes_full[result_cols],
-                  right_on='RecipeId', left_on='docno', how='left')
-
-results[results["query"] == query_set[0]].head()[['query', 'Name', 'RecipeInstructions']]
-
-query_res = []
-
-for query in query_set:
-  res = results[results["query"] == query].head()[['query', 'Name', 'RecipeInstructions']]
-  query_res.extend(res.to_dict('records'))
-
-print(query_res)
-'''
-
-temp_query_res = [{"index":0,"query":"kimichi stew","Name":"Perfect Chicken Stew","RecipeInstructions":"c(\"Season a 3-7 pound chicken with Garlic powder and Pepper. Roast chicken in oven at 325 degrees.\", \"While chicken is cooking, dice potatoes, slice carrots, chop onions and carrots to desired thickness. Place vegetables in stewing pot and add water until vegetables are covered with about an 3 inches of water. Boil rapidly until potatoes are just finished.\", \"Remove vegetables from the pot by straining them and keep the water. By removing the vegetables and letting them cool, you prevent overcooking them and they won't dissolve into nothing.\", \n\"With remaining water on low heat, add can of cream of mushroom soup, can of chicken stock and milk (milk optional, Zie Ga Zink).\", \"If you don't use milk, I suggest a premium ready to serve brand of creamed mushroom soup, it will be of a smoother, creamier consistency than the regular cans of mushroom soup.\", \"Get a small sealable container and fill with 1 cup of cold water, then add 1 cup of flour, cover and seal, then immediately shake vigorously. You are making a thickener for the stew, it should look like the consistency of glue with no lumps. If to thick add a bit of water, too thin add a bit more flour, shake very hard again. If there are a few lumps you can remove them by straining. This process, once learned, is very useful for making gravies or other stews without using a high-fat butter and flour 'roux' thickener.\", \n\"Rapidly add thickener to the starch water/mushroom soup/stock/milk mixture using a whisk. You may have to make a little more thickener if you want a hardier stew, just remember that the stew will thicken more after it is removed from the heat and it stands. Simmer to desired consistency. Stir often. Do not burn! I suggest a non-stick stew pot, it helps prevent burning.\", \"Add the cooked (now cooled) vegetables to the stew.\", \"When chicken is finished roasting, drain juices into the stew. Remove skin and bones.  Tear or cut chicken apart and add to the stew.\", \n\"Stir in about 2-3 tablespoons of salt to stew  and about the same amount of pepper to taste.\", \"If you want, try adding a dash of hot sauce or a pinch of Sambel Olek.\", \"Let stew simmer for a little longer. Serve with fresh bread and Enjoy.\", \"Questions? brennarlauterbach@hotmail.com.\")"},{"index":1,"query":"kimichi stew","Name":"Wintry Beef Vegetable Stew With Fluffy Herb Dumplings","RecipeInstructions":"c(\"Cook and stir beef in shortening in heavy 8-10 quart stock pot, until beef is well browned. (Note: If too much liquid builds up to prevent adequate browning, pour off excess liquid into a bowl and reserve. Continue to brown the beef and when well browned, add the reserved liquid back into the pot.).\", \"Add 5 cups hot water, 1/2 teaspoon salt and the black pepper.\", \"Heat to boiling; reduce heat.\", \"Cover and simmer until beef is almost tender, 45 minutes to 1 hour.\", \"Stir in potato, turnip, rutabaga, carrots, green pepper, green beans (if using), celery, onion, bouquet sauce, the bouillon cube and bay leaves.\", \n\"Cover and simmer until vegetables are tender (but do not overcook), stirring once, about 25 minutes.\", \"Prepare dough (see below) for Dumplings;  set aside.\", \"Using a fork, blend together 1 cup cold water and the 4 tablespoons flour in a small mixing bowl; stir gradually into stew.\", \"Heat to boiling, stirring constantly.\", \"Boil and stir 1 minute; reduce heat.\", \"Do ahead tip: After boiling and stirring 1 minute, stew can be covered and refrigerated no longer than 48 hours. To serve, heat to boiling over medium-high heat. Continue as directed.\", \n\"DUMPLINGS:\", \"In a large bowl, cut shortening into combined flour, baking powder, salt, parsley and herbs until mixture resembles fine crumbs.\", \"Stir in milk.\", \"Drop by heaping tablespoons onto hot meat or vegetables in boiling stew (do not drop directly into liquid).\", \"Cook uncovered 15 minutes.\", \"Cover and cook about 15 minutes longer. Cut a dumpling in half to test for doneness; you want them done but not dry!\", \"Serve stew piping hot, with a buttered baguette and a glass of cider, ale, or wine. As with all good stews, this stew is even better reheated the next day, after flavors have had a chance to meld. Stew leftovers freeze and reheat beautifully, and would make a delicious cottage or shepherd's pie.\"\n)"}]
