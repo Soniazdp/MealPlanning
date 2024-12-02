@@ -36,7 +36,7 @@ print(result_json)
 
 extracted_recipe = {}
 
-query_res = utils.get_query_res()
+query_res = utils.get_query_res(result_json)
 
 for recipe in query_res:
     recipe_name = recipe['Name']
@@ -78,7 +78,7 @@ recipe_with_nutrients = utils.get_best_match(ingreds['Ingredients'], df_nutritio
 
 nutrients_dict = utils.nutrients_dict_init()
 
-nutrients_str = utils.nutrients_to_str(recipe_with_nutrients, nutrients_dict)
+nutrients_str, nutrients_dict = utils.nutrients_to_str(recipe_with_nutrients, nutrients_dict)
 
 enforce_prompt = utils.enforce_template.format(user_location=user_location, user_query=user_query, extra_input=extra_input, generated_recipes=concat_steps, nutrients_str=nutrients_str)
 
@@ -117,7 +117,7 @@ while compliance_res['Compliance'] == False and count < 10:
 
     nutrients_dict = utils.nutrients_dict_init()
 
-    nutrients_str = utils.nutrients_to_str(recipe_with_nutrients, nutrients_dict)
+    nutrients_str, nutrients_dict = utils.nutrients_to_str(recipe_with_nutrients, nutrients_dict)
 
     enforce_prompt = utils.enforce_template.format(user_location=user_location, user_query=user_query, extra_input=extra_input, generated_recipes=concat_steps, nutrients_str=nutrients_str)
 
@@ -128,6 +128,8 @@ while compliance_res['Compliance'] == False and count < 10:
 
     count += 1
 
+
+cook_steps['Nutrition sum'] = nutrients_dict
 cook_steps['Nutrition info'] = recipe_with_nutrients
 ingreds_df = pd.DataFrame(res_ingreds['Ingredients'])
 ingreds_df.to_csv("ingredients_result.csv", index=False)

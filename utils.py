@@ -141,7 +141,7 @@ def nutrients_to_str(recipe_with_nutrients, nutrients_dict):
         nutrients_str += " "
         nutrients_str += nutrients_unit[nu]
         nutrients_str += ", "
-    return nutrients_str
+    return nutrients_str, nutrients_dict
     
 def get_query_res(result_json):
 
@@ -315,7 +315,7 @@ ingredset ::= ("{" ingredname "," space ingredwgt space "}")
 ingreds ::= (space "[" space (ingredset ("," space ingredset){20})? "]")
 '''
 
-fix_recipe_template = "The user is living in {user_location}.\nThe user is looking for a {user_query}. {extra_input} \nHere is a generated recipe: {generated_recipes}.\nHere is the nutrition information of the recipe: {nutrients_str}. It is not complying with the nutrition or dietary requirements because {comply_reason}. Fix the recipe and generate a new recipe. You must not include nutrition information or any notes. Stop generating instructions when the food is ready to serve. Do not put notes or nutrition in cooking instructions. Your output will be in the format:"
+fix_recipe_template = "The user is living in {user_location}.\nThe user is looking for a {user_query}. {extra_input} \nHere is a generated recipe: {generated_recipes}.\nHere is the nutrition information of the recipe: {nutrients_str}. It is not complying with the nutrition or dietary requirements because {comply_reason}. Fix the recipe and generate a new recipe. You must not include nutrition information or any notes. Stop generating instructions when the food is ready to serve. Do not put notes or nutrition in cooking instructions."
 
 
 nutrients = ['calories', 'total_fat', 'fat', 'saturated_fat', 'saturated_fatty_acids', 'cholesterol','sodium', 'carbohydrate', 'fiber', 'sugars', 'protein', 'vitamin_a', 'vitamin_a_rae','carotene_alpha', 'carotene_beta', 'cryptoxanthin_beta', 'lutein_zeaxanthin', 'lucopene','vitamin_b12', 'vitamin_b6', 'vitamin_c', 'vitamin_d', 'vitamin_e', 'tocopherol_alpha','vitamin_k', 'calcium', 'copper', 'iron', 'magnesium', 'manganese', 'phosphorous','potassium', 'selenium', 'zinc', 'water']
