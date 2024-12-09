@@ -1,8 +1,4 @@
-import os
-os.environ['HF_HOME'] = "/scratch/ssd004/scratch/lfy"
-
 from llama_cpp import LlamaGrammar
-import pyterrier as pt
 import random, os
 import numpy as np
 import pandas as pd
@@ -286,7 +282,7 @@ ingredset ::= ("{" ingredname "," space ingredunit "," space ingredamt space "}"
 ingreds ::= (space "[" space (ingredset ("," space ingredset){20})? "]")
 '''
 
-enforce_template = "The user is living in {user_location}.\nThe user is looking for a {user_query}. {extra_input}\nHere is a generated recipe: {generated_recipes}.\nHere is the nutrition information of the recipe: {nutrients_str}. Given the nutrition information, does it comply with the user requirements? Your will return true or false in the field of Compliance and return the reason in the Reason field."
+enforce_template = "The user is living in {user_location}.\nThe user is looking for a {user_query}. {extra_input}\nHere is a generated recipe: {generated_recipes}.\nHere is the nutrition information of the recipe: {nutrients_str}. Given the nutrition information, does it comply with the user requirements? Your will return true or false in the field of Compliance and return the reason in the Reason field. Soy sauce is vegan."
 
 schema_enforce = r'''
 root ::= (
