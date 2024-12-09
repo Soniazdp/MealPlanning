@@ -24,4 +24,4 @@ main.py
 - `ingreds-path` for ingredient csv file output.
 - `instructs-path` for cooking steps and nutrition information file output.
 
-Extra user input can be passed into `extra-input` as a string. More details can be accessed through `python main.py -h`. 
+Extra user input can be passed into `extra-input` as a string. More details can be accessed through `python main.py -h`. Example outputs are provided as `cook_steps.json` and `ingredients_result.csv`.
