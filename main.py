@@ -64,7 +64,7 @@ def main(args):
 
     cook_steps = utils.generate_recipe(llm, ask_recipe_prompt, utils.schema_recipe, temperature)
 
-    if args.verbose():
+    if args.verbose:
         print("Recipe steps: ")
         print(cook_steps)
 
